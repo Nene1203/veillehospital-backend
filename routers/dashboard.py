@@ -219,33 +219,74 @@ def get_evolution(
         models.Patient.date_entree.isnot(None)
     )
 
+    def make_row(label, patients_list, veilles_list=None):
+        durees = [p.duree_sejour for p in patients_list if p.duree_sejour is not None]
+        attentes = [p.attente_avant_op_jours for p in patients_list if p.attente_avant_op_jours is not None]
+        taux_list = []
+        if veilles_list:
+            taux_list = [v.nb_lits_occupes / v.nb_lits_disponibles * 100
+                         for v in veilles_list if v.nb_lits_disponibles and v.nb_lits_disponibles > 0]
+        return {
+            "label": label,
+            "value": len(patients_list),
+            "hospitalisations": len(patients_list),
+            "sortis": sum(1 for p in patients_list if p.statut == "Sorti"),
+            "transferts": sum(1 for p in patients_list if p.statut == "Transféré"),
+            "rehospitalisations": sum(1 for p in patients_list if p.rehospitalisation),
+            "presents": sum(1 for p in patients_list if p.statut == "Hospitalisé"),
+            "duree_moyenne": round(sum(durees)/len(durees), 1) if durees else 0,
+            "attente_moyenne": round(sum(attentes)/len(attentes), 1) if attentes else 0,
+            "taux_remplissage": round(sum(taux_list)/len(taux_list), 1) if taux_list else 0,
+        }
+
+    all_patients = q.all()
+
     if semaine and annee:
-        # Par jour
-        rows = q.with_entities(
-            models.Patient.date_entree,
-            func.count().label('n')
-        ).group_by(models.Patient.date_entree).order_by(models.Patient.date_entree).all()
         JOURS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
-        return [{"label": JOURS[r.date_entree.weekday()], "value": r.n, "date": str(r.date_entree)} for r in rows]
+        by_day = {}
+        for p in all_patients:
+            key = p.date_entree
+            by_day.setdefault(key, []).append(p)
+        result = []
+        for date in sorted(by_day.keys()):
+            label = JOURS[date.weekday()]
+            v_list = build_veille_query(db, campagne_id, etablissement_id, annee, mois, semaine).all()
+            result.append(make_row(label, by_day[date], v_list))
+        return result
+
     elif mois and annee:
-        # Par semaine du mois
-        rows = q.with_entities(
-            extract('week', models.Patient.date_entree).label('s'),
-            func.count().label('n')
-        ).group_by('s').order_by('s').all()
-        return [{"label": f"S{int(r.s)}", "value": r.n} for r in rows]
+        from sqlalchemy import extract as sa_extract
+        by_week = {}
+        for p in all_patients:
+            import datetime
+            week = p.date_entree.isocalendar()[1]
+            by_week.setdefault(week, []).append(p)
+        result = []
+        for week in sorted(by_week.keys()):
+            v_list = build_veille_query(db, campagne_id, etablissement_id, annee, mois, week).all()
+            result.append(make_row(f"S{week}", by_week[week], v_list))
+        return result
+
     elif annee:
-        # Par mois
-        NOMS = {1:'Jan',2:'Fév',3:'Mar',4:'Avr',5:'Mai',6:'Jun',7:'Jul',8:'Aoû',9:'Sep',10:'Oct',11:'Nov',12:'Déc'}
-        rows = q.with_entities(
-            extract('month', models.Patient.date_entree).label('m'),
-            func.count().label('n')
-        ).group_by('m').order_by('m').all()
-        return [{"label": NOMS[int(r.m)], "value": r.n} for r in rows]
+        NOMS = {1:"Jan",2:"Fév",3:"Mar",4:"Avr",5:"Mai",6:"Jun",
+                7:"Jul",8:"Aoû",9:"Sep",10:"Oct",11:"Nov",12:"Déc"}
+        by_month = {}
+        for p in all_patients:
+            m = p.date_entree.month
+            by_month.setdefault(m, []).append(p)
+        result = []
+        for m in sorted(by_month.keys()):
+            v_list = build_veille_query(db, campagne_id, etablissement_id, annee, m, None).all()
+            result.append(make_row(NOMS[m], by_month[m], v_list))
+        return result
+
     else:
-        # Par année
-        rows = q.with_entities(
-            extract('year', models.Patient.date_entree).label('y'),
-            func.count().label('n')
-        ).group_by('y').order_by('y').all()
-        return [{"label": str(int(r.y)), "value": r.n} for r in rows]
+        by_year = {}
+        for p in all_patients:
+            y = p.date_entree.year
+            by_year.setdefault(y, []).append(p)
+        result = []
+        for y in sorted(by_year.keys()):
+            v_list = build_veille_query(db, campagne_id, etablissement_id, y, None, None).all()
+            result.append(make_row(str(y), by_year[y], v_list))
+        return result
