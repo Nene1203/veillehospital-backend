@@ -460,6 +460,7 @@ def get_stats_enrichies(
         "par_type_hosp": count_field("type_hosp"),
         "par_motif": count_field("motif"),
         "par_classe_plaisir": count_field("classe_plaisir"),
+        "par_issue": count_field("issue"),
     }
 
 
