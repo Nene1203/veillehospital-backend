@@ -21,7 +21,7 @@ class EtablissementOut(EtablissementBase):
     model_config = {"from_attributes": True}
 
 
-# ─── Campagne ─────────────────────────────────────────────────
+# ─── Campagne ────────────────────────────────────────────────
 class CampagneBase(BaseModel):
     titre: str
     type: str = "hebdomadaire"
@@ -38,92 +38,97 @@ class CampagneOut(CampagneBase):
     model_config = {"from_attributes": True}
 
 
-# ─── Patient ──────────────────────────────────────────────────
-class PatientBase(BaseModel):
-    nom: Optional[str] = None
-    prenom: Optional[str] = None
-    age: Optional[int] = Field(None, ge=0, le=130)
-    chambre: Optional[str] = None
-    pathologie: Optional[str] = None
-    operation_subie: Optional[str] = None
-    date_entree: Optional[date] = None
-    date_sortie: Optional[date] = None
-    attente_avant_op_jours: int = 0
-    temps_apres_op_jours: int = 0
-    mode_entree: str = "Urgences"
-    statut: str = "Hospitalisé"
-    destination_sortie: Optional[str] = None
-    rehospitalisation: bool = False
+# ─── Hospitalisation ─────────────────────────────────────────
+class HospitalisationBase(BaseModel):
+    date_hosp:      Optional[date]  = None
+    num_resident:   Optional[str]   = None
+    age:            Optional[int]   = Field(None, ge=55, le=115)
+    genre:          Optional[str]   = None   # Femme / Homme
+    classe_plaisir: Optional[int]   = Field(None, ge=1, le=12)
+    jour_hosp:      Optional[str]   = None   # Lundi au Vendredi / Week-end / Jour Férié
+    heure_hosp:     Optional[str]   = None   # Jour (8h-20h) / Nuit (20h-8h)
+    type_hosp:      Optional[str]   = None   # Planifiée / Urgence
+    demandeur:      Optional[str]   = None
+    lieu_hosp:      Optional[str]   = None   # Somatique / Psychiatrie / Les Deux
+    duree_hosp:     Optional[str]   = None   # <24H ou 1–50
+    motif:          Optional[str]   = None
+    issue:          Optional[str]   = None
+    remarques:      Optional[str]   = None
 
-class PatientCreate(PatientBase):
+class HospitalisationCreate(HospitalisationBase):
     pass
 
-class PatientOut(PatientBase):
+class HospitalisationOut(HospitalisationBase):
     id: UUID
     veille_id: UUID
-    duree_sejour: Optional[int] = None
     created_at: datetime
     model_config = {"from_attributes": True}
 
 
-# ─── Veille ───────────────────────────────────────────────────
+# ─── Veille ──────────────────────────────────────────────────
 class VeilleBase(BaseModel):
-    campagne_id: UUID
+    campagne_id:      UUID
     etablissement_id: UUID
-    nb_lits_disponibles: int = 0
-    nb_lits_occupes: int = 0
-    commentaires: Optional[str] = None
+    nb_lits:          int = 0
+    nb_deces:         int = 0
+    reseau_sante:     Optional[str] = None
+    commentaires:     Optional[str] = None
 
 class VeilleCreate(VeilleBase):
-    patients: List[PatientCreate] = []
+    hospitalisations: List[HospitalisationCreate] = []
 
 class VeilleUpdate(BaseModel):
-    statut: Optional[str] = None
-    nb_lits_disponibles: Optional[int] = None
-    nb_lits_occupes: Optional[int] = None
-    commentaires: Optional[str] = None
-    patients: Optional[List[PatientCreate]] = None
+    statut:           Optional[str] = None
+    nb_lits:          Optional[int] = None
+    nb_deces:         Optional[int] = None
+    reseau_sante:     Optional[str] = None
+    commentaires:     Optional[str] = None
+    hospitalisations: Optional[List[HospitalisationCreate]] = None
 
 class VeilleOut(VeilleBase):
-    id: UUID
-    statut: str
-    date_saisie: date
-    responsable_id: Optional[UUID]
-    patients: List[PatientOut] = []
-    created_at: datetime
-    updated_at: datetime
+    id:              UUID
+    statut:          str
+    date_saisie:     date
+    responsable_id:  Optional[UUID] = None
+    hospitalisations: List[HospitalisationOut] = []
+    created_at:      datetime
+    updated_at:      datetime
     model_config = {"from_attributes": True}
 
 
-# ─── Dashboard ────────────────────────────────────────────────
+# ─── Dashboard ───────────────────────────────────────────────
 class KpiOut(BaseModel):
-    total_hospitalisations: int
-    duree_moyenne_sejour: Optional[float]
-    attente_moyenne_avant_op: Optional[float]
-    taux_remplissage_moyen: Optional[float]
-    total_sortis: int
-    total_transferts: int
-    total_rehospitalisations: int
-    total_presents: int
+    total_hospitalisations:  int
+    repartition_urgences:    Optional[float] = None  # % urgences
+    repartition_planifiees:  Optional[float] = None  # % planifiées
+    duree_moyenne_sejour:    Optional[float] = None  # durée moyenne en jours
+    taux_nuit:               Optional[float] = None  # % hospitalisations de nuit
+    taux_weekend:            Optional[float] = None  # % week-end + jours fériés
+    top_motif:               Optional[str]   = None
+    taux_retour_ems:         Optional[float] = None
+    taux_deces:              Optional[float] = None
 
 class EtabStatsOut(BaseModel):
-    etablissement_id: UUID
-    etablissement_nom: str
-    hospitalisations: int
-    duree_moyenne: Optional[float]
-    attente_moyenne: Optional[float]
-    taux_remplissage: Optional[float]
-    sortis: int
-    transferts: int
-    rehospitalisations: int
-    statut_veille: str
+    etablissement_id:   UUID
+    etablissement_nom:  str
+    hospitalisations:   int
+    urgences:           int = 0
+    planifiees:         int = 0
+    duree_moyenne:      Optional[float] = None
+    taux_nuit:          Optional[float] = None
+    retour_ems:         int = 0
+    deces:              int = 0
+    transferts:         int = 0
+    nb_lits:            Optional[int]   = None
+    nb_deces:           Optional[int]   = None
+    statut_veille:      str
 
 class PathoStatOut(BaseModel):
-    pathologie: str
-    count: int
-    pourcentage: float
+    pathologie:   str
+    count:        int
+    pourcentage:  float
 
 class DashboardOut(BaseModel):
-    kpis: KpiOut
+    kpis:              KpiOut
     par_etablissement: List[EtabStatsOut]
-    par_pathologie: List[PathoStatOut]
+    par_pathologie:    List[PathoStatOut]

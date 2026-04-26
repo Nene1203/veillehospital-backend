@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from uuid import UUID
-from datetime import date
 from database import get_db
 import models, schemas
 
@@ -25,7 +23,6 @@ def list_veilles(
 
 @router.post("/", response_model=schemas.VeilleOut, status_code=201)
 def create_veille(data: schemas.VeilleCreate, db: Session = Depends(get_db)):
-    # Vérifie l'unicité campagne + établissement
     existing = db.query(models.Veille).filter(
         models.Veille.campagne_id == data.campagne_id,
         models.Veille.etablissement_id == data.etablissement_id
@@ -36,17 +33,15 @@ def create_veille(data: schemas.VeilleCreate, db: Session = Depends(get_db)):
             detail="Une veille existe déjà pour cet établissement dans cette campagne"
         )
 
-    # Crée la veille
-    patients_data = data.patients
-    veille_data = data.model_dump(exclude={"patients"})
+    hosps_data = data.hospitalisations
+    veille_data = data.model_dump(exclude={"hospitalisations"})
     veille = models.Veille(**veille_data)
     db.add(veille)
-    db.flush()  # récupère l'id avant commit
+    db.flush()
 
-    # Crée les patients associés
-    for p in patients_data:
-        patient = models.Patient(**p.model_dump(), veille_id=veille.id)
-        db.add(patient)
+    for h in hosps_data:
+        hosp = models.Hospitalisation(**h.model_dump(), veille_id=veille.id)
+        db.add(hosp)
 
     db.commit()
     db.refresh(veille)
@@ -67,19 +62,17 @@ def update_veille(veille_id: str, data: schemas.VeilleUpdate, db: Session = Depe
     if not v:
         raise HTTPException(status_code=404, detail="Veille introuvable")
 
-    # Met à jour les champs scalaires
-    update_fields = data.model_dump(exclude={"patients"}, exclude_none=True)
+    update_fields = data.model_dump(exclude={"hospitalisations"}, exclude_none=True)
     for field, value in update_fields.items():
         setattr(v, field, value)
 
-    # Remplace les patients si fournis
-    if data.patients is not None:
-        for p in v.patients:
-            db.delete(p)
+    if data.hospitalisations is not None:
+        for h in v.hospitalisations:
+            db.delete(h)
         db.flush()
-        for p in data.patients:
-            patient = models.Patient(**p.model_dump(), veille_id=v.id)
-            db.add(patient)
+        for h in data.hospitalisations:
+            hosp = models.Hospitalisation(**h.model_dump(), veille_id=v.id)
+            db.add(hosp)
 
     db.commit()
     db.refresh(v)
