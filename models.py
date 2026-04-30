@@ -2,11 +2,23 @@ import uuid
 from datetime import date, datetime
 from sqlalchemy import (
     Column, String, Integer, Boolean, Date, Text,
-    ForeignKey, DateTime, UniqueConstraint
+    ForeignKey, DateTime, UniqueConstraint, Table
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from database import Base
+
+
+# ─── Table de liaison Utilisateur <-> Etablissement ──────────
+utilisateur_etablissement = Table(
+    "utilisateur_etablissement",
+    Base.metadata,
+    Column("utilisateur_id", UUID(as_uuid=True), ForeignKey("utilisateurs.id", ondelete="CASCADE"), primary_key=True),
+    Column("etablissement_id", UUID(as_uuid=True), ForeignKey("etablissements.id", ondelete="CASCADE"), primary_key=True),
+)
+
+# Rôles valides
+ROLES_VALIDES = ["admin", "dir-hev", "dir-eta", "contrib"]
 
 
 class Etablissement(Base):
@@ -21,7 +33,7 @@ class Etablissement(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     veilles      = relationship("Veille", back_populates="etablissement")
-    utilisateurs = relationship("Utilisateur", back_populates="etablissement")
+    utilisateurs = relationship("Utilisateur", secondary=utilisateur_etablissement, back_populates="etablissements")
 
 
 class Utilisateur(Base):
@@ -32,13 +44,15 @@ class Utilisateur(Base):
     prenom           = Column(String(100), nullable=False)
     email            = Column(String(200), unique=True, nullable=False)
     mot_de_passe     = Column(String(200), nullable=False)
-    role             = Column(String(20), default="responsable")
-    etablissement_id = Column(UUID(as_uuid=True), ForeignKey("etablissements.id"))
+    role             = Column(String(20), default="contrib")
+    # Conservé pour compatibilité avec l'ancien code
+    etablissement_id = Column(UUID(as_uuid=True), ForeignKey("etablissements.id"), nullable=True)
     actif            = Column(Boolean, default=True)
     created_at       = Column(DateTime(timezone=True), default=datetime.utcnow)
 
-    etablissement = relationship("Etablissement", back_populates="utilisateurs")
-    veilles       = relationship("Veille", back_populates="responsable")
+    # Nouvelle relation many-to-many
+    etablissements = relationship("Etablissement", secondary=utilisateur_etablissement, back_populates="utilisateurs")
+    veilles        = relationship("Veille", back_populates="responsable")
 
 
 class Campagne(Base):
@@ -66,10 +80,8 @@ class Veille(Base):
     responsable_id   = Column(UUID(as_uuid=True), ForeignKey("utilisateurs.id"))
     statut           = Column(String(20), default="brouillon")
     date_saisie      = Column(Date, default=date.today)
-    # Anciens champs conservés pour compatibilité
     nb_lits_disponibles = Column(Integer, default=0)
     nb_lits_occupes     = Column(Integer, default=0)
-    # Nouveaux champs EMS 2026
     nb_lits      = Column(Integer, default=0)
     nb_deces     = Column(Integer, default=0)
     reseau_sante = Column(String(100))
@@ -84,36 +96,27 @@ class Veille(Base):
 
 
 class Hospitalisation(Base):
-    """Table principale de saisie — conforme au formulaire Excel EMS 2026."""
     __tablename__ = "hospitalisations"
 
     id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     veille_id       = Column(UUID(as_uuid=True), ForeignKey("veilles.id", ondelete="CASCADE"), nullable=False)
 
-    # Information Résident
     date_hosp       = Column(Date)
     num_resident    = Column(String(50))
     age             = Column(Integer)
-    genre           = Column(String(10))       # Femme / Homme
-    classe_plaisir  = Column(Integer)          # 1–12
+    genre           = Column(String(10))
+    classe_plaisir  = Column(Integer)
 
-    # Dates / Heures
-    jour_hosp       = Column(String(30))       # Lundi au Vendredi / Week-end / Jour Férié
-    heure_hosp      = Column(String(20))       # Jour (8h-20h) / Nuit (20h-8h)
+    jour_hosp       = Column(String(30))
+    heure_hosp      = Column(String(20))
 
-    # Hospitalisation
-    type_hosp       = Column(String(20))       # Planifiée / Urgence
-    demandeur       = Column(String(60))       # Médecin Responsable, Traitant…
-    lieu_hosp       = Column(String(20))       # Somatique / Psychiatrie / Les Deux
-    duree_hosp      = Column(String(10))       # <24H ou nombre de jours
+    type_hosp       = Column(String(20))
+    demandeur       = Column(String(60))
+    lieu_hosp       = Column(String(20))
+    duree_hosp      = Column(String(10))
 
-    # Motif
     motif           = Column(String(100))
-
-    # Post-hospitalisation
-    issue           = Column(String(50))       # Retour EMS / Décès / Transfert…
-
-    # Remarques
+    issue           = Column(String(50))
     remarques       = Column(Text)
 
     created_at      = Column(DateTime(timezone=True), default=datetime.utcnow)
