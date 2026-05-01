@@ -237,3 +237,57 @@ def delete_user(user_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
     user.actif = False
     db.commit()
+
+@router.get("/roles")
+def get_roles():
+    """Retourne la liste des rôles disponibles avec leurs descriptions."""
+    return [
+        {
+            "value": "admin",
+            "label": "Administrateur Héviva",
+            "description": "Accès complet : utilisateurs, paramètres, exports, toutes les données",
+            "permissions": {
+                "voir_tous_etablissements": True,
+                "tableau_bord_global": True,
+                "saisir_campagnes": True,
+                "gerer_utilisateurs": True,
+                "exporter": True,
+            }
+        },
+        {
+            "value": "dir-hev",
+            "label": "Direction Héviva",
+            "description": "Tableaux de bord consolidés et analyses globales — lecture seule",
+            "permissions": {
+                "voir_tous_etablissements": True,
+                "tableau_bord_global": True,
+                "saisir_campagnes": False,
+                "gerer_utilisateurs": False,
+                "exporter": True,
+            }
+        },
+        {
+            "value": "dir-eta",
+            "label": "Direction Établissement",
+            "description": "Accès limité à ses établissements — lecture seule",
+            "permissions": {
+                "voir_tous_etablissements": False,
+                "tableau_bord_global": False,
+                "saisir_campagnes": False,
+                "gerer_utilisateurs": False,
+                "exporter": False,
+            }
+        },
+        {
+            "value": "contrib",
+            "label": "Contributeur Établissement",
+            "description": "Saisie et consultation sur ses établissements + exports",
+            "permissions": {
+                "voir_tous_etablissements": False,
+                "tableau_bord_global": False,
+                "saisir_campagnes": True,
+                "gerer_utilisateurs": False,
+                "exporter": True,
+            }
+        },
+    ]
