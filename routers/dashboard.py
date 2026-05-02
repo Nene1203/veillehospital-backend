@@ -303,6 +303,10 @@ def get_evolution(
             "nuit":              sum(1 for h in hosps_list if h.heure_hosp == "Nuit (20h-8h)"),
             "retour_ems":        sum(1 for h in hosps_list if h.issue == "Retour EMS"),
             "deces":             sum(1 for h in hosps_list if h.issue == "Décès"),
+            "taux_deces":        round(sum(1 for h in hosps_list if h.issue == "Décès")/total*100, 1) if total else 0,
+            "repartition_urgences": round(sum(1 for h in hosps_list if h.type_hosp == "Urgence")/total*100, 1) if total else 0,
+            "taux_nuit":         round(sum(1 for h in hosps_list if h.heure_hosp == "Nuit (20h-8h)")/total*100, 1) if total else 0,
+            "taux_weekend":      round(sum(1 for h in hosps_list if h.jour_hosp in ("Week-end", "Jour Férié"))/total*100, 1) if total else 0,"deces":             sum(1 for h in hosps_list if h.issue == "Décès"),
             "duree_moyenne":     round(sum(durees)/len(durees), 1) if durees else 0,
             # Compatibilité
             "sortis":            sum(1 for h in hosps_list if h.issue == "Retour EMS"),
